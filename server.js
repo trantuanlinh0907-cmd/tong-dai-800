@@ -5,6 +5,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const db = require('./database');
 const brain = require('./brain');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,8 +14,13 @@ const VERIFY_TOKEN = process.env.VERIFY_TOKEN || db.ai_config.bm_config.verify_t
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static(__dirname));
 
 // WEBHOOK FACEBOOK - 800 Page dung 1 URL
+// GIAO DIEN 800 PAGE
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'GIAO-DIEN-800-PAGE.html'));
+});
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
