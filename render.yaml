@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: tong-dai-800-brain
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: VERIFY_TOKEN
+        value: tong_dai_800_verify_2024
