@@ -16,11 +16,12 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
 
-// WEBHOOK FACEBOOK - 800 Page dung 1 URL
 // GIAO DIEN 800 PAGE
 app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'GIAO-DIEN-800-PAGE.html'));
 });
+
+// WEBHOOK FACEBOOK - 800 Page dung 1 URL
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -188,6 +189,41 @@ app.get('/api/ai-config', (req,res)=> res.json(db.ai_config));
 app.put('/api/ai-config', (req,res)=>{
   Object.assign(db.ai_config, req.body);
   res.json({ ok: true, config: db.ai_config });
+});
+
+
+// API KHO KIEN THUC CHUNG - DONG BO VOI GIAO DIEN MOI
+app.get('/api/knowledge', (req,res)=> res.json(db.knowledge_base));
+app.put('/api/knowledge/guidelines', (req,res)=>{
+  db.knowledge_base.guidelines = req.body.guidelines || db.knowledge_base.guidelines;
+  res.json({ ok: true, guidelines: db.knowledge_base.guidelines });
+});
+app.get('/api/knowledge/files', (req,res)=> res.json(db.knowledge_base.files));
+app.post('/api/knowledge/files', (req,res)=>{
+  const { name, size, type } = req.body;
+  const newFile = { id: `file_${Date.now()}`, name, size: size||'1MB', date: new Date().toLocaleDateString('vi-VN'), type: type||'pdf' };
+  db.knowledge_base.files.push(newFile);
+  res.json(newFile);
+});
+app.delete('/api/knowledge/files/:id', (req,res)=>{
+  db.knowledge_base.files = db.knowledge_base.files.filter(f=>f.id!==req.params.id);
+  res.json({ ok: true });
+});
+app.get('/api/knowledge/quick-replies', (req,res)=> res.json(db.knowledge_base.quick_replies));
+app.post('/api/knowledge/quick-replies', (req,res)=>{
+  const { text } = req.body;
+  const newQR = { id: `qr_${Date.now()}`, text };
+  db.knowledge_base.quick_replies.push(newQR);
+  res.json(newQR);
+});
+app.put('/api/knowledge/quick-replies/:id', (req,res)=>{
+  const qr = db.knowledge_base.quick_replies.find(x=>x.id===req.params.id);
+  if (qr){ qr.text = req.body.text || qr.text; res.json({ ok: true, qr }); }
+  else res.status(404).json({ error: 'Not found' });
+});
+app.delete('/api/knowledge/quick-replies/:id', (req,res)=>{
+  db.knowledge_base.quick_replies = db.knowledge_base.quick_replies.filter(x=>x.id!==req.params.id);
+  res.json({ ok: true });
 });
 
 app.get('/api/overview', (req,res)=> res.json(db.overview));

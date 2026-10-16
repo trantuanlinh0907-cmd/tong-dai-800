@@ -31,6 +31,8 @@ function shouldTransferToHuman(text, conversation, aiConfig){
 
 function buildPrompt(product, conversation, customerMessage, aiConfig){
   const systemPrompt = aiConfig.system_prompt;
+  const knowledgeGuidelines = db.knowledge_base?.guidelines || '';
+  const quickReplies = db.knowledge_base?.quick_replies?.map(q=>q.text).join(' | ') || '';
   const kichBanGoc = product.kich_ban_goc.replace('{{name}}', conversation.customer_name);
   const history = conversation.messages.slice(-5).map(m=> `${m.from}: ${m.text}`).join('\n');
   const primaryLang = conversation.primary_lang || 'VI';
@@ -47,6 +49,12 @@ function buildPrompt(product, conversation, customerMessage, aiConfig){
     detectedLang,
     prompt: `${systemPrompt}
 
+QUY DINH CHUNG TU KHO KIEN THUC (BAT BUOC TUAN THU):
+${knowledgeGuidelines}
+
+MAU CAU TRA LOI NHANH CO THE DUNG:
+${quickReplies}
+
 KICH BAN GOC CUA SAN PHAM (1 O DUY NHAT - CHUA INFO+GIA+CHOT):
 ${kichBanGoc}
 
@@ -58,9 +66,11 @@ ${customerMessage}
 
 YEU CAU:
 1. Tra loi bang dung ngon ngu cua khach: ${targetLang}
-2. Dung nguyen kich ban goc, chi dich sang ${targetLang}, khong bia them combo gia
-3. Neu khach gui dia chi bang ngon ngu khac, giu nguyen ngon ngu chinh ${primaryLang}
-4. Luon hoi SDT truoc khi chot don neu chua co
+2. Tuan thu QUY DINH CHUNG tu kho kien thuc
+3. Dung nguyen kich ban goc, chi dich sang ${targetLang}, khong bia them combo gia
+4. Neu khach gui dia chi bang ngon ngu khac, giu nguyen ngon ngu chinh ${primaryLang}
+5. Luon hoi SDT truoc khi chot don neu chua co
+6. Co the dung mau cau tra loi nhanh khi phu hop
 `
   };
 }

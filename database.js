@@ -108,6 +108,27 @@ Quy tac:
       verify_token: 'tong_dai_800_verify_2024'
     }
   },
+  knowledge_base: {
+    guidelines: `QUY ĐỊNH CHUNG:
+- Luôn chào khách bằng tên nếu có
+- Không nói xấu đối thủ
+- Luôn đề cập freeship từ 2sp
+- Khi khách hỏi giá quá 3 lần mà chưa chốt → chuyển người
+- Mẫu chốt đơn: "Dạ chị cho em xin SĐT + địa chỉ để em lên đơn nhé ạ"`,
+    files: [
+      { id: 'file_1', name: 'quy-dinh-doi-tra.pdf', size: '2.4MB', date: '12/12/2024', type: 'pdf' },
+      { id: 'file_2', name: 'mau-cau-tra-loi-chung.docx', size: '1.1MB', date: '10/12/2024', type: 'docx' },
+      { id: 'file_3', name: 'huong-dan-chot-don.txt', size: '45KB', date: '08/12/2024', type: 'txt' }
+    ],
+    quick_replies: [
+      { id: 'qr_1', text: 'Dạ chị cho em xin SĐT để em lên đơn ạ' },
+      { id: 'qr_2', text: 'Bên em freeship từ 2 sản phẩm ạ' },
+      { id: 'qr_3', text: 'Chị check tin nhắn chờ giúp em nha' },
+      { id: 'qr_4', text: 'Dạ sản phẩm có bảo hành chính hãng 12 tháng ạ' },
+      { id: 'qr_5', text: 'Em gửi bảng size cho chị tham khảo ạ' },
+      { id: 'qr_6', text: 'Dạ em cảm ơn chị nhiều ạ ❤️' }
+    ]
+  },
   overview: {
     today_conversations: 1248,
     ai_auto_rate: 86.4,
