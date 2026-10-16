@@ -36,5 +36,29 @@ Quy tắc:
 </script>
   <script>(function(){function m(a){var h=a.getAttribute("href");if(!h)return;try{var u=new URL(h,document.baseURI);if((u.protocol==="http:"||u.protocol==="https:")&&u.host!==location.host){a.target="_blank";a.rel="noopener noreferrer";}}catch(e){}}function s(){document.querySelectorAll("a[href]").forEach(m);}if(document.readyState!=="loading"){s();}else{document.addEventListener("DOMContentLoaded",s);}document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(a){m(a);}},true);})();</script>
   <script type="application/json" data-clippy-inline-media-manifest="1">{"version":1,"slots":[]}</script>
+
+  <!-- Socket.IO Realtime -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    (function() {
+      if (typeof io === 'undefined') {
+        console.warn('Socket.IO client chưa load được từ /socket.io/socket.io.js');
+        return;
+      }
+      const socket = io();
+      socket.on('connect', () => console.log('✅ Đã kết nối Socket:', socket.id));
+
+      socket.on('new_message', (data) => {
+        console.log('🔥 Tin nhắn mới:', data);
+        if (typeof fetchConversations === 'function') fetchConversations();
+        if (typeof loadConversations === 'function') loadConversations();
+        // Nếu không có hàm thì reload nhẹ
+        // location.reload();
+      });
+
+      socket.on('init_data', (data) => console.log('Init:', data));
+      socket.on('conversations_updated', (data) => console.log('Updated:', data));
+    })();
+  </script>
 </body>
 </html>
