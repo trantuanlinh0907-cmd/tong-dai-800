@@ -16,5 +16,5 @@ echo BUOC 3: Chay server...
 echo Neu thay dong "Tong Dai 800 Brain running" la thanh cong!
 echo Giua nguyen cua so nay, mo cua so moi chay ngrok de lay link https
 echo.
-node src/server.js
+node server.js
 pause

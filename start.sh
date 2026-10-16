@@ -15,4 +15,4 @@ echo "BUOC 3: Chay server..."
 echo "Neu thay dong 'Tong Dai 800 Brain running' la thanh cong!"
 echo "Giua nguyen cua so nay, mo cua so moi chay: npx ngrok http 3000"
 echo ""
-node src/server.js
+node server.js

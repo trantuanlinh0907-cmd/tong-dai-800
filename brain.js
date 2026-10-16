@@ -131,8 +131,8 @@ async function processMessage(pageId, customerId, text, conversation){
   const reply = await callAI(promptData, aiConfig);
 
   let autoTags = [];
-  if (/gia|bao nhieu|price|rm/i.test(text)) autoTags.push('dang_tu_van');
-  if (/chot|ok|lay|mua|order/i.test(text)) autoTags.push('chot_don');
+  if (/gia|bao nhieu|price|rm/i.test(text)) autoTags.push('dang-tu-van');
+  if (/chot|ok|lay|mua|order/i.test(text)) autoTags.push('chot-don');
 
   return {
     reply,

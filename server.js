@@ -21,19 +21,17 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// BAO MAT: Chan truy cap file nhay cam (.env, database.js, brain.js, server.js, package.json)
-// truoc khi mo static folder
+// L3 (OPTION B): KHONG co folder public -> comment static line, chi serve file cu the qua /dashboard
+// app.use(express.static(path.join(__dirname, 'public')));
+// Voi OPTION B file goc o root, can middleware forbidden de chan .env/database.js khi serve
 app.use((req, res, next) => {
   const forbidden = ['.env', 'database.js', 'brain.js', 'server.js', 'package.json', 'package-lock.json', 'render.yaml', 'start.bat', 'start.sh', 'vercel.json'];
   const url = req.url.toLowerCase();
-  if (forbidden.some(f => url.includes(f))) {
+  if (forbidden.some(f => url.endsWith(f) || url.includes(f + '?') || url === '/' + f)) {
     return res.status(403).send('Forbidden');
   }
   next();
 });
-// LOI 5: Chi public folder public/ (chua GIAO-DIEN-800-PAGE.html),
-// khong phai ca __dirname de tranh lo file .env, database.js
-app.use(express.static(path.join(__dirname, 'public')));
 
 // ===== SOCKET REALTIME =====
 io.on('connection', (socket) => {
@@ -56,7 +54,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Ham emit dung chung
+// Ham emit dung chung - L2: THONG NHAT chi 1 noi emit
 function emitNewMessage(conv, newMsg) {
   io.emit('new_message', {
     conversationId: conv.id,
@@ -64,13 +62,16 @@ function emitNewMessage(conv, newMsg) {
     conversation: conv,
     timestamp: new Date().toISOString()
   });
-  io.emit('conversation_update', conv);
   io.emit('conversations_updated', db.conversations.slice(0, 100));
   io.emit('overview_update', db.overview);
 }
 
 // GIAO DIEN 800 PAGE
 app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'GIAO-DIEN-800-PAGE.html'));
+});
+// L3: Them route / cung tra HTML de nguoi dung vao thang localhost:3000 cung thay UI
+app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'GIAO-DIEN-800-PAGE.html'));
 });
 
@@ -127,7 +128,7 @@ app.post('/webhook', async (req, res) => {
               messages: [],
               tags: [],
               primary_lang: brain.detectLanguage(text),
-              status: 'chua_doc',
+              status: 'chua-doc',
               last_message: text,
               unread: 0,
               created_at: now,
@@ -144,21 +145,15 @@ app.post('/webhook', async (req, res) => {
           conv.last_message = text;
           conv.updated_at = new Date().toISOString();
           conv.unread = (conv.unread || 0) + 1;
-          // Emit new_message + conversations_updated
-          io.emit('new_message', {
-            conversationId: conv.id,
-            conversation: conv,
-            newMessage: customerMsg
-          });
-          io.emit('conversations_updated', db.conversations);
+          // L2: emit dung chung qua emitNewMessage, KHONG emit rieng o day
           emitNewMessage(conv, customerMsg);
 
           const result = await brain.processMessage(internalPageId, customerId, text, conv);
 
           if (result.transfer){
             console.log(`-> Chuyen cho nguoi: ${result.reason}`);
-            conv.status = 'cho_xu_ly';
-            conv.tags = [...new Set([...conv.tags, 'cho_xu_ly'])];
+            conv.status = 'cho-xu-ly';
+            conv.tags = [...new Set([...conv.tags, 'cho-xu-ly'])];
             conv.updated_at = new Date().toISOString();
             db.overview.can_xu_ly += 1;
           } else {
@@ -170,7 +165,7 @@ app.post('/webhook', async (req, res) => {
               time: new Date().toLocaleTimeString()
             };
             conv.messages.push(botMsg);
-            conv.status = 'dang_tu_van';
+            conv.status = 'dang-tu-van';
             conv.last_message = result.reply;
             conv.updated_at = new Date().toISOString();
             if (result.autoTags){
@@ -247,6 +242,73 @@ app.post('/api/conversations/:id/message', async (req,res)=>{
   conv.last_message = text;
   emitNewMessage(conv, msg);
   res.json({ ok: true, conversation: conv });
+});
+// L7: Endpoint test nhanh - khong can webhook that
+app.post('/api/test-message', async (req, res) => {
+  const { page_id, customer_id, text, customer_name } = req.body;
+  const pid = page_id || 'page_001';
+  const page = db.pages.find(p => p.id === pid) || db.pages[0];
+  const internalPageId = page.id;
+  const cid = customer_id || `test_${Date.now()}`;
+  const txt = text || 'Test message tu /api/test-message';
+  console.log(`[TEST-MSG] ${internalPageId} / ${cid}: ${txt}`);
+
+  let conv = db.conversations.find(c =>
+    c.page_id === internalPageId && (c.customer_id === cid || c.psid === cid)
+  );
+  let isNewConv = false;
+  if (!conv) {
+    isNewConv = true;
+    const now = new Date().toISOString();
+    conv = {
+      id: `conv_${internalPageId}_${cid}`,
+      page_id: internalPageId,
+      fb_page_id: page.fb_page_id,
+      page_name: page.name,
+      via_id: page.via_id,
+      customer_id: cid,
+      psid: cid,
+      customer_name: customer_name || `Khach ${cid.slice(-4)}`,
+      initials: `K${cid.slice(-2)}`,
+      avatar: 'KH',
+      messages: [],
+      tags: [],
+      primary_lang: brain.detectLanguage(txt),
+      status: 'chua-doc',
+      last_message: txt,
+      unread: 0,
+      created_at: now,
+      updated_at: now
+    };
+    db.conversations.unshift(conv);
+    io.emit('new_conversation', conv);
+  }
+  const customerMsg = { from: 'customer', text: txt, lang: brain.detectLanguage(txt), time: new Date().toLocaleTimeString() };
+  conv.messages.push(customerMsg);
+  conv.last_message = txt;
+  conv.updated_at = new Date().toISOString();
+  conv.unread = (conv.unread || 0) + 1;
+  emitNewMessage(conv, customerMsg);
+
+  // goi brain tra loi
+  const result = await brain.processMessage(internalPageId, cid, txt, conv);
+  if (result.transfer) {
+    conv.status = 'cho-xu-ly';
+    conv.tags = [...new Set([...conv.tags, 'cho-xu-ly'])];
+    conv.updated_at = new Date().toISOString();
+  } else {
+    const botMsg = {
+      from: 'bot', text: result.reply, model: `BOT - ${db.ai_config.model}`,
+      lang: result.targetLang, time: new Date().toLocaleTimeString()
+    };
+    conv.messages.push(botMsg);
+    conv.status = 'dang-tu-van';
+    conv.last_message = result.reply;
+    if (result.autoTags) conv.tags = [...new Set([...conv.tags, ...result.autoTags])];
+    emitNewMessage(conv, botMsg);
+  }
+  io.emit('overview_update', db.overview);
+  res.json({ ok: true, isNewConv, conversation: conv });
 });
 app.post('/api/conversations/:id/tags', (req,res)=>{
   const conv = db.conversations.find(c=>c.id===req.params.id);
@@ -325,7 +387,8 @@ app.delete('/api/knowledge/quick-replies/:id', (req,res)=>{
 
 app.get('/api/overview', (req,res)=> res.json(db.overview));
 
-app.get('/', (req,res)=> res.json({ status: 'Tong Dai 800 Brain running + Socket.IO', pages: db.pages.length, products: db.products.length, conversations: db.conversations.length, socket: 'enabled' }));
+// L3: status JSON doi sang /api-status, vi / da dung cho UI HTML roi
+app.get('/api/status', (req,res)=> res.json({ status: 'Tong Dai 800 Brain running + Socket.IO', pages: db.pages.length, products: db.products.length, conversations: db.conversations.length, socket: 'enabled' }));
 
 // QUAN TRONG: Dung server.listen thay vi app.listen
 server.listen(PORT, ()=> console.log(`Tong Dai 800 Brain + REALTIME running at http://localhost:${PORT} - Webhook: http://localhost:${PORT}/webhook - Verify token: ${VERIFY_TOKEN} - Socket.IO: enabled`));

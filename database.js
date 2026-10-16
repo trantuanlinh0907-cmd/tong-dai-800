@@ -45,13 +45,13 @@ Bao hanh doi tra 30 ngay. Ban quan tam combo nao a?`,
   },
   conversations: [],
   tags: [
-    { id: 'chua_doc', name: 'Chua doc', color: 'pink', count: 15 },
-    { id: 'dang_tu_van', name: 'Dang tu van', color: 'yellow', count: 42 },
-    { id: 'cho_xu_ly', name: 'Cho xu ly', color: 'orange', count: 38 },
-    { id: 'chot_don', name: 'Chot don', color: 'green', count: 324 },
-    { id: 'bom_hang', name: 'Bom hang', color: 'purple', count: 12 },
-    { id: 'can_goi_lai', name: 'Can goi lai', color: 'blue', count: 18 },
-    { id: 'khach_vip', name: 'Khach VIP', color: 'lightpink', count: 56 }
+    { id: 'chua-doc', name: 'Chua doc', color: 'pink', count: 15 },
+    { id: 'dang-tu-van', name: 'Dang tu van', color: 'yellow', count: 42 },
+    { id: 'cho-xu-ly', name: 'Cho xu ly', color: 'orange', count: 38 },
+    { id: 'chot-don', name: 'Chot don', color: 'green', count: 324 },
+    { id: 'bom-hang', name: 'Bom hang', color: 'purple', count: 12 },
+    { id: 'can-goi-lai', name: 'Can goi lai', color: 'blue', count: 18 },
+    { id: 'khach-vip', name: 'Khach VIP', color: 'lightpink', count: 56 }
   ],
   team: [
     { id: 'user_1', email: 'admin@tongdai800.com', name: 'Admin Tong', role: 'admin', via_ids: ['via_1','via_2','via_3','via_4'], page_ids: [], status: 'online', handling: 0 },
