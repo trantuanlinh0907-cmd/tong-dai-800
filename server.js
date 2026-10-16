@@ -1,4 +1,3 @@
-
 require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -6,8 +5,15 @@ const cors = require('cors');
 const db = require('./database');
 const brain = require('./brain');
 const path = require('path');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: "*", methods: ["GET","POST","PUT","DELETE"] }
+});
+
 const PORT = process.env.PORT || 3000;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || db.ai_config.bm_config.verify_token;
 
@@ -15,6 +21,40 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
+
+// ===== SOCKET REALTIME =====
+io.on('connection', (socket) => {
+  console.log(`[SOCKET] Client connected: ${socket.id}`);
+  
+  // Gui toan bo conversations khi moi connect
+  socket.emit('init_data', {
+    conversations: db.conversations.slice(0, 100),
+    overview: db.overview,
+    pages: db.pages.length
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`[SOCKET] Client disconnected: ${socket.id}`);
+  });
+
+  // Cho phep frontend request refresh
+  socket.on('request_refresh', () => {
+    socket.emit('conversations_updated', db.conversations.slice(0, 100));
+  });
+});
+
+// Ham emit dung chung
+function emitNewMessage(conv, newMsg) {
+  io.emit('new_message', {
+    conversationId: conv.id,
+    message: newMsg,
+    conversation: conv,
+    timestamp: new Date().toISOString()
+  });
+  io.emit('conversation_update', conv);
+  io.emit('conversations_updated', db.conversations.slice(0, 100));
+  io.emit('overview_update', db.overview);
+}
 
 // GIAO DIEN 800 PAGE
 app.get('/dashboard', (req, res) => {
@@ -49,7 +89,9 @@ app.post('/webhook', async (req, res) => {
           console.log(`[${internalPageId}] Khach ${customerId}: ${text}`);
 
           let conv = db.conversations.find(c=>c.page_id===internalPageId);
+          let isNewConv = false;
           if (!conv){
+            isNewConv = true;
             conv = {
               id: `conv_${Date.now()}`,
               page_id: internalPageId,
@@ -60,12 +102,18 @@ app.post('/webhook', async (req, res) => {
               messages: [],
               tags: [],
               primary_lang: brain.detectLanguage(text),
-              status: 'chua_doc'
+              status: 'chua_doc',
+              last_message: text
             };
             db.conversations.unshift(conv);
+            // Emit new conversation ngay lap tuc
+            io.emit('new_conversation', conv);
           }
 
-          conv.messages.push({ from: 'customer', text, lang: brain.detectLanguage(text), time: new Date().toLocaleTimeString() });
+          const customerMsg = { from: 'customer', text, lang: brain.detectLanguage(text), time: new Date().toLocaleTimeString() };
+          conv.messages.push(customerMsg);
+          conv.last_message = text;
+          emitNewMessage(conv, customerMsg);
 
           const result = await brain.processMessage(internalPageId, customerId, text, conv);
 
@@ -75,18 +123,23 @@ app.post('/webhook', async (req, res) => {
             conv.tags = [...new Set([...conv.tags, 'cho_xu_ly'])];
             db.overview.can_xu_ly += 1;
           } else {
-            conv.messages.push({ 
+            const botMsg = { 
               from: 'bot', 
               text: result.reply, 
               model: `BOT - ${db.ai_config.model}`,
               lang: result.targetLang,
               time: new Date().toLocaleTimeString()
-            });
+            };
+            conv.messages.push(botMsg);
             conv.status = 'dang_tu_van';
+            conv.last_message = result.reply;
             if (result.autoTags){
               conv.tags = [...new Set([...conv.tags, ...result.autoTags])];
             }
+            emitNewMessage(conv, botMsg);
           }
+          // Cap nhat overview
+          io.emit('overview_update', db.overview);
         }
       }
     }
@@ -149,7 +202,10 @@ app.post('/api/conversations/:id/message', async (req,res)=>{
   const conv = db.conversations.find(c=>c.id===req.params.id);
   if (!conv) return res.status(404).json({error:'Not found'});
   const { text, from } = req.body;
-  conv.messages.push({ from: from||'human', text, time: new Date().toLocaleTimeString() });
+  const msg = { from: from||'human', text, time: new Date().toLocaleTimeString() };
+  conv.messages.push(msg);
+  conv.last_message = text;
+  emitNewMessage(conv, msg);
   res.json({ ok: true, conversation: conv });
 });
 app.post('/api/conversations/:id/tags', (req,res)=>{
@@ -161,6 +217,7 @@ app.post('/api/conversations/:id/tags', (req,res)=>{
   } else {
     if (!conv.tags.includes(tag)) conv.tags.push(tag);
   }
+  io.emit('conversation_update', conv);
   res.json({ ok: true, tags: conv.tags });
 });
 app.post('/api/conversations/:id/translate', async (req,res)=>{
@@ -228,6 +285,7 @@ app.delete('/api/knowledge/quick-replies/:id', (req,res)=>{
 
 app.get('/api/overview', (req,res)=> res.json(db.overview));
 
-app.get('/', (req,res)=> res.json({ status: 'Tong Dai 800 Brain running', pages: db.pages.length, products: db.products.length, conversations: db.conversations.length }));
+app.get('/', (req,res)=> res.json({ status: 'Tong Dai 800 Brain running + Socket.IO', pages: db.pages.length, products: db.products.length, conversations: db.conversations.length, socket: 'enabled' }));
 
-app.listen(PORT, ()=> console.log(`Tong Dai 800 Brain running at http://localhost:${PORT} - Webhook: http://localhost:${PORT}/webhook - Verify token: ${VERIFY_TOKEN}`));
+// QUAN TRONG: Dung server.listen thay vi app.listen
+server.listen(PORT, ()=> console.log(`Tong Dai 800 Brain + REALTIME running at http://localhost:${PORT} - Webhook: http://localhost:${PORT}/webhook - Verify token: ${VERIFY_TOKEN} - Socket.IO: enabled`));
