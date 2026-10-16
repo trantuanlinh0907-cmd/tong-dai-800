@@ -95,8 +95,9 @@ async function getFacebookUserProfile(psid, token) {
   } catch (e) {
     const status = e.response ? e.response.status : 'NETWORK';
     const fbError = e.response && e.response.data && e.response.data.error ? e.response.data.error : null;
-    console.log(`[FB-PROFILE] Loi lay profile PSID=${psid} status=${status} error=${fbErr ? fbErr.message : e.message}`);
-    return { ok: false, error: fbError ? fbError.message : e.message, status: status };
+    const errMsg = fbError ? fbError.message : e.message;
+    console.log(`[FB-PROFILE] Loi lay profile PSID=${psid} status=${status} error=${errMsg}`);
+    return { ok: false, error: errMsg, status: status };
   }
 }
 
@@ -230,9 +231,13 @@ async function handleWebhookPayload(body) {
         // Lay ten that neu co (uu tien: event.sender.name tu FB, fallback API profile)
         let realName = (event.sender && event.sender.name) || (event.message && event.message.name) || null;
         if (!realName) {
-          // Goi Facebook User Profile API de lay ten that (best-effort)
-          const profile = await getFacebookUserProfile(customerId, page.page_access_token || PAGE_ACCESS_TOKEN);
-          if (profile.ok && profile.name) realName = profile.name;
+          // Goi Facebook User Profile API de lay ten that (best-effort, co try/catch de tranh crash webhook)
+          try {
+            const profile = await getFacebookUserProfile(customerId, page.page_access_token || PAGE_ACCESS_TOKEN);
+            if (profile && profile.ok && profile.name) realName = profile.name;
+          } catch (profileErr) {
+            console.log(`[WEBHOOK] getFacebookUserProfile exception (bo qua, dung fallback): ${profileErr.message}`);
+          }
         }
         const fallbackName = realName || `Khach ${customerId.slice(-6)}`;
         const safeInitials = (realName
@@ -496,16 +501,24 @@ app.post('/api/conversations/:id/fetch-profile', async (req, res) => {
   if (!conv.psid) return res.status(400).json({ error: 'conv.psid khong co' });
   const page = db.pages.find(p => p.id === conv.page_id);
   const token = (page && page.page_access_token) || PAGE_ACCESS_TOKEN;
-  const profile = await getFacebookUserProfile(conv.psid, token);
-  if (profile.ok && profile.name) {
-    conv.customer_name = profile.name;
-    conv.initials = profile.name.split(/\s+/).map(w => w[0] || '').slice(0, 2).join('').toUpperCase() || 'KH';
-    if (profile.profile_pic) conv.avatar = profile.profile_pic;
-    conv.updated_at = new Date().toISOString();
-    emitConvUpdate(conv);
-    res.json({ ok: true, name: profile.name, profile_pic: profile.profile_pic });
-  } else {
-    res.status(400).json({ ok: false, error: profile.error, status: profile.status });
+  try {
+    const profile = await getFacebookUserProfile(conv.psid, token);
+    if (profile.ok && profile.name) {
+      conv.customer_name = profile.name;
+      conv.initials = profile.name.split(/\s+/).map(w => w[0] || '').slice(0, 2).join('').toUpperCase() || 'KH';
+      if (profile.profile_pic) conv.avatar = profile.profile_pic;
+      conv.updated_at = new Date().toISOString();
+      emitConvUpdate(conv);
+      res.json({ ok: true, name: profile.name, profile_pic: profile.profile_pic });
+    } else {
+      // Fallback: giu ten cu, tra ve loi de UI biet
+      const fallback = `Khach ${conv.psid.slice(-6)}`;
+      console.log(`[FETCH-PROFILE] FAIL conv=${conv.id} reason=${profile.error} -> keep name='${conv.customer_name}' or fallback='${fallback}'`);
+      res.status(200).json({ ok: false, error: profile.error, status: profile.status, fallback_name: fallback, current_name: conv.customer_name });
+    }
+  } catch (e) {
+    console.error(`[FETCH-PROFILE] exception conv=${conv.id}:`, e.message);
+    res.status(500).json({ ok: false, error: e.message, fallback_name: `Khach ${conv.psid.slice(-6)}` });
   }
 });
 
