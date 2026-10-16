@@ -1,4 +1,4 @@
-
+﻿
 const axios = require('axios');
 const db = require('./database');
 
@@ -84,7 +84,9 @@ async function callAI(promptData, aiConfig){
       'EN': `[EN Auto-translated] Hello! I'm AI assistant of ${targetLang}... Serum Vitamin C 20%... Buy 1 Get 1 Free 70 RM + 2 gifts... What combo do you want?`,
       'MY': `[MY Auto-translated] Hai! Saya AI Serum Vitamin C 20%... Beli 1 Percuma 1 70 RM + 2 hadiah...`,
       'KO': `[KO Auto-translated] Annyeonghaseyo! Vitamin C serum 20% AI... 1+1 70 RM + gift 2...`,
-      'VI': prompt.split('KICH BAN GOC')[1]?.slice(0,500) || 'Mock VI reply'
+      'ZH': `[ZH Auto-translated] Ni hao! Wo shi AI... Vitamin C 20%... 1+1 70 RMB + 2 liwu...`,
+      'AR': `[AR Auto-translated] Marhaba! Ana musaead AI... Vitamin C 20%...`,
+      'VI': `Chao ban, minh la tro ly AI cua shop. San pham Serum Vitamin C 20% hien dang giam 20% con 320K (gia goc 400K), dung tot cho da nhay cam. Ban de lai SDT minh goi tu van chi tiet nhe!`
     };
     return langMap[targetLang] || langMap['EN'];
   }
@@ -116,17 +118,12 @@ async function processMessage(pageId, customerId, text, conversation){
 
   if (!product) return { reply: 'Chua gan san pham cho Page nay (1 Page = 1 SP)', transfer: false };
 
-  const detectedLang = detectLanguage(text);
-  const transferCheck = shouldTransferToHuman(text, conversation, aiConfig);
-  if (transferCheck.should){
-    return { 
-      reply: null, 
-      transfer: true, 
-      reason: transferCheck.reason,
-      detectedLang
-    };
+  // FIX: Dam bao customer_name co gia tri that (fallback 'Khach <id>') de {{name}} khong leak placeholder
+  if (!conversation.customer_name || !conversation.customer_name.trim() || conversation.customer_name === 'Khach') {
+    conversation.customer_name = 'Khach ' + String(customerId || '').slice(-6);
   }
 
+  const detectedLang = detectLanguage(text);
   const promptData = buildPrompt(product, conversation, text, aiConfig);
   const reply = await callAI(promptData, aiConfig);
 
@@ -143,4 +140,4 @@ async function processMessage(pageId, customerId, text, conversation){
   };
 }
 
-module.exports = { processMessage, detectLanguage, translateForStaff, buildPrompt, shouldTransferToHuman };
+module.exports = { processMessage, detectLanguage, translateForStaff, buildPrompt, shouldTransferToHuman, callAI };

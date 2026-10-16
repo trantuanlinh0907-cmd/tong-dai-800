@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -112,6 +112,16 @@ app.post('/webhook', async (req, res) => {
           if (!conv){
             isNewConv = true;
             const now = new Date().toISOString();
+            // Lay ten that tu webhook (Facebook gui kem sender.name neu co)
+            // Hoac tu message. Neu khong co, fallback "Khach <id> de phan biet"
+            const realName = (event.sender && event.sender.name) ||
+                             (event.message && event.message.name) ||
+                             body.entry?.[0]?.messaging?.[0]?.sender?.name ||
+                             null;
+            const fallbackName = realName || `Khach ${customerId.slice(-6)}`;
+            const safeInitials = (realName
+              ? realName.split(/\s+/).map(w => w[0] || '').slice(0, 2).join('').toUpperCase()
+              : `K${customerId.slice(-2)}`) || 'KH';
             // FIX 2: Tao conv moi phai luu DU: customer_id, psid, fb_page_id,
             // via_id, last_message, unread, created_at, updated_at, initials
             conv = {
@@ -122,8 +132,8 @@ app.post('/webhook', async (req, res) => {
               via_id: page.via_id,
               customer_id: customerId,
               psid: customerId,
-              customer_name: `Khach ${customerId.slice(-4)}`,
-              initials: `K${customerId.slice(-2)}`,
+              customer_name: fallbackName,
+              initials: safeInitials,
               avatar: 'KH',
               messages: [],
               tags: [],
@@ -235,13 +245,18 @@ app.get('/api/conversations', (req,res)=>{
 });
 app.post('/api/conversations/:id/message', async (req,res)=>{
   const conv = db.conversations.find(c=>c.id===req.params.id);
-  if (!conv) return res.status(404).json({error:'Not found'});
+  if (!conv) return res.status(404).json({error:'Not found conv: ' + req.params.id});
   const { text, from } = req.body;
-  const msg = { from: from||'human', text, time: new Date().toLocaleTimeString() };
+  if (!text || !text.trim()) return res.status(400).json({error:'text required'});
+  const sender = (from === 'bot' || from === 'customer') ? from : 'human';
+  const msg = { from: sender, text: text.trim(), time: new Date().toLocaleTimeString() };
   conv.messages.push(msg);
-  conv.last_message = text;
+  conv.last_message = msg.text;
+  conv.updated_at = new Date().toISOString();
+  console.log('[MSG] conv=' + conv.id + ' from=' + sender + ' text=' + JSON.stringify(msg.text));
+  console.log('[MSG] total messages in conv: ' + conv.messages.length);
   emitNewMessage(conv, msg);
-  res.json({ ok: true, conversation: conv });
+  res.json({ ok: true, conversation: conv, message: msg });
 });
 // L7: Endpoint test nhanh - khong can webhook that
 app.post('/api/test-message', async (req, res) => {
