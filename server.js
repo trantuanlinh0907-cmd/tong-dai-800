@@ -88,22 +88,37 @@ app.post('/webhook', async (req, res) => {
           const text = event.message.text;
           console.log(`[${internalPageId}] Khach ${customerId}: ${text}`);
 
-          let conv = db.conversations.find(c=>c.page_id===internalPageId);
+          // FIX 1: Tim conv theo CẢ page_id + customer_id (PSID) de cac via khac nhau
+          // nhan cung 1 Page van tao rieng hoi thoai, khong bi gop chung
+          let conv = db.conversations.find(c=>
+            c.page_id===internalPageId &&
+            (c.customer_id===customerId || c.psid===customerId)
+          );
           let isNewConv = false;
           if (!conv){
             isNewConv = true;
+            const now = new Date().toISOString();
+            // FIX 2: Tao conv moi phai luu DU: customer_id, psid, fb_page_id,
+            // via_id, last_message, unread, created_at, updated_at, initials
             conv = {
-              id: `conv_${Date.now()}`,
+              id: `conv_${internalPageId}_${customerId}`,
               page_id: internalPageId,
+              fb_page_id: page.fb_page_id,
               page_name: page.name,
               via_id: page.via_id,
+              customer_id: customerId,
+              psid: customerId,
               customer_name: `Khach ${customerId.slice(-4)}`,
+              initials: `K${customerId.slice(-2)}`,
               avatar: 'KH',
               messages: [],
               tags: [],
               primary_lang: brain.detectLanguage(text),
               status: 'chua_doc',
-              last_message: text
+              last_message: text,
+              unread: 0,
+              created_at: now,
+              updated_at: now
             };
             db.conversations.unshift(conv);
             // Emit new conversation ngay lap tuc
@@ -112,7 +127,17 @@ app.post('/webhook', async (req, res) => {
 
           const customerMsg = { from: 'customer', text, lang: brain.detectLanguage(text), time: new Date().toLocaleTimeString() };
           conv.messages.push(customerMsg);
+          // FIX 4: Cap nhat last_message, updated_at, tang unread
           conv.last_message = text;
+          conv.updated_at = new Date().toISOString();
+          conv.unread = (conv.unread || 0) + 1;
+          // Emit new_message + conversations_updated
+          io.emit('new_message', {
+            conversationId: conv.id,
+            conversation: conv,
+            newMessage: customerMsg
+          });
+          io.emit('conversations_updated', db.conversations);
           emitNewMessage(conv, customerMsg);
 
           const result = await brain.processMessage(internalPageId, customerId, text, conv);
@@ -121,11 +146,12 @@ app.post('/webhook', async (req, res) => {
             console.log(`-> Chuyen cho nguoi: ${result.reason}`);
             conv.status = 'cho_xu_ly';
             conv.tags = [...new Set([...conv.tags, 'cho_xu_ly'])];
+            conv.updated_at = new Date().toISOString();
             db.overview.can_xu_ly += 1;
           } else {
-            const botMsg = { 
-              from: 'bot', 
-              text: result.reply, 
+            const botMsg = {
+              from: 'bot',
+              text: result.reply,
               model: `BOT - ${db.ai_config.model}`,
               lang: result.targetLang,
               time: new Date().toLocaleTimeString()
@@ -133,6 +159,7 @@ app.post('/webhook', async (req, res) => {
             conv.messages.push(botMsg);
             conv.status = 'dang_tu_van';
             conv.last_message = result.reply;
+            conv.updated_at = new Date().toISOString();
             if (result.autoTags){
               conv.tags = [...new Set([...conv.tags, ...result.autoTags])];
             }
