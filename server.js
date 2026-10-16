@@ -20,7 +20,20 @@ const VERIFY_TOKEN = process.env.VERIFY_TOKEN || db.ai_config.bm_config.verify_t
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static(__dirname));
+
+// BAO MAT: Chan truy cap file nhay cam (.env, database.js, brain.js, server.js, package.json)
+// truoc khi mo static folder
+app.use((req, res, next) => {
+  const forbidden = ['.env', 'database.js', 'brain.js', 'server.js', 'package.json', 'package-lock.json', 'render.yaml', 'start.bat', 'start.sh', 'vercel.json'];
+  const url = req.url.toLowerCase();
+  if (forbidden.some(f => url.includes(f))) {
+    return res.status(403).send('Forbidden');
+  }
+  next();
+});
+// LOI 5: Chi public folder public/ (chua GIAO-DIEN-800-PAGE.html),
+// khong phai ca __dirname de tranh lo file .env, database.js
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ===== SOCKET REALTIME =====
 io.on('connection', (socket) => {

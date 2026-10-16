@@ -43,27 +43,7 @@ Bao hanh doi tra 30 ngay. Ban quan tam combo nao a?`,
     'page_142': 'prod_serum_vitc',
     'page_089': 'prod_combo_glow'
   },
-  conversations: [
-    {
-      id: 'conv_001',
-      page_id: 'page_142',
-      page_name: 'Page #142 - My pham Han',
-      via_id: 'via_1',
-      customer_name: 'Nguyen Thi Lan Anh',
-      customer_phone: '0912 345 678',
-      avatar: 'LA',
-      last_message: 'Chi oi serum nay dung cho da nhay cam d...',
-      status: 'dang_tu_van',
-      unread: 2,
-      tags: ['dang_tu_van', 'chua_doc'],
-      primary_lang: 'VI',
-      time: '2p',
-      messages: [
-        { from: 'customer', text: 'Shop oi cho em hoi serum Vitamin C ben minh co dung duoc cho da nhay cam khong a?', lang: 'VI', time: '14:02' },
-        { from: 'bot', text: 'Da chao chi Lan Anh, em la tro ly AI cua Page #142 a! Serum Vit C 20% ben em lanh tinh, khong con, khong huong lieu, phu hop cho da nhay cam a. Chi nen patch test truoc o vung co tay 24h nha chi', model: 'BOT - GPT-4o-mini', time: '14:02' }
-      ]
-    }
-  ],
+  conversations: [],
   tags: [
     { id: 'chua_doc', name: 'Chua doc', color: 'pink', count: 15 },
     { id: 'dang_tu_van', name: 'Dang tu van', color: 'yellow', count: 42 },
