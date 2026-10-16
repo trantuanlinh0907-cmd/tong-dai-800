@@ -78,17 +78,12 @@ YEU CAU:
 async function callAI(promptData, aiConfig){
   const { prompt, targetLang } = promptData;
   const apiKey = aiConfig.api_keys.openai;
-  
+
   if (!apiKey || apiKey.includes('...')){
-    const langMap = {
-      'EN': `[EN Auto-translated] Hello! I'm AI assistant of ${targetLang}... Serum Vitamin C 20%... Buy 1 Get 1 Free 70 RM + 2 gifts... What combo do you want?`,
-      'MY': `[MY Auto-translated] Hai! Saya AI Serum Vitamin C 20%... Beli 1 Percuma 1 70 RM + 2 hadiah...`,
-      'KO': `[KO Auto-translated] Annyeonghaseyo! Vitamin C serum 20% AI... 1+1 70 RM + gift 2...`,
-      'ZH': `[ZH Auto-translated] Ni hao! Wo shi AI... Vitamin C 20%... 1+1 70 RMB + 2 liwu...`,
-      'AR': `[AR Auto-translated] Marhaba! Ana musaead AI... Vitamin C 20%...`,
-      'VI': `Chao ban, minh la tro ly AI cua shop. San pham Serum Vitamin C 20% hien dang giam 20% con 320K (gia goc 400K), dung tot cho da nhay cam. Ban de lai SDT minh goi tu van chi tiet nhe!`
-    };
-    return langMap[targetLang] || langMap['EN'];
+    // FIX: User da yeu cau TAT tu dong tra loi - khong tra hardcoded message
+    // Tra ve null de caller (webhook) khong push qua Facebook
+    console.log(`[BRAIN] Khong co OpenAI API key that -> skip auto reply (targetLang=${targetLang})`);
+    return null;
   }
 
   try {
@@ -102,8 +97,9 @@ async function callAI(promptData, aiConfig){
     });
     return res.data.choices[0].message.content;
   } catch (e){
+    // FIX: User da yeu cau TAT tu dong tra loi - khong spam khi OpenAI loi
     console.error('AI call error', e.response?.data || e.message);
-    return `Da em dang ban chut, chi de lai SDT em goi lai tu van ky hon a! (Loi AI: ${e.message})`;
+    return null;
   }
 }
 

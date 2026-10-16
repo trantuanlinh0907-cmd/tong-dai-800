@@ -228,13 +228,17 @@ async function handleWebhookPayload(body) {
 
       if (!conv) {
         const now = new Date().toISOString();
-        // Lay ten that neu co (uu tien: event.sender.name tu FB, fallback API profile)
+        // Lay ten that + avatar neu co (uu tien: event.sender.name tu FB, fallback API profile)
         let realName = (event.sender && event.sender.name) || (event.message && event.message.name) || null;
+        let realAvatar = null; // URL avatar that tu Facebook
         if (!realName) {
           // Goi Facebook User Profile API de lay ten that (best-effort, co try/catch de tranh crash webhook)
           try {
             const profile = await getFacebookUserProfile(customerId, page.page_access_token || PAGE_ACCESS_TOKEN);
-            if (profile && profile.ok && profile.name) realName = profile.name;
+            if (profile && profile.ok) {
+              if (profile.name) realName = profile.name;
+              if (profile.profile_pic) realAvatar = profile.profile_pic;
+            }
           } catch (profileErr) {
             console.log(`[WEBHOOK] getFacebookUserProfile exception (bo qua, dung fallback): ${profileErr.message}`);
           }
@@ -254,7 +258,8 @@ async function handleWebhookPayload(body) {
           psid: customerId,
           customer_name: fallbackName,
           initials: safeInitials,
-          avatar: 'KH',
+          // avatar: URL that tu FB neu co, neu khong thi placeholder 'KH' (UI se render initials)
+          avatar: realAvatar || 'KH',
           messages: [],
           tags: [],
           primary_lang: brain.detectLanguage(text),
@@ -277,7 +282,8 @@ async function handleWebhookPayload(body) {
       conv.unread = (conv.unread || 0) + 1;
       emitNewMessage(conv, customerMsg);
 
-      // Xu ly AI
+      // Xu ly AI - USER YEU CAU: TAT TU DONG TRA LOI
+      // Chi goi brain.processMessage de lay autoTags (neu co), KHONG push botMsg, KHONG goi sendToFacebook
       try {
         const result = await brain.processMessage(internalPageId, customerId, text, conv);
 
@@ -289,30 +295,38 @@ async function handleWebhookPayload(body) {
           db.overview.can_xu_ly = (db.overview.can_xu_ly || 0) + 1;
           emitConvUpdate(conv);
         } else if (result.reply) {
-          const botMsg = {
-            from: 'bot',
-            text: result.reply,
-            model: `BOT - ${db.ai_config.model || 'gpt-4o-mini'}`,
-            lang: result.targetLang,
-            time: new Date().toLocaleTimeString()
-          };
-          conv.messages.push(botMsg);
-          conv.status = 'dang-tu-van';
-          conv.last_message = result.reply;
-          conv.updated_at = new Date().toISOString();
-          if (result.autoTags && result.autoTags.length) {
-            conv.tags = [...new Set([...conv.tags, ...result.autoTags])];
-          }
-          emitNewMessage(conv, botMsg);
-          // Day luon qua Facebook de khach that nhan duoc
-          const fbResult = await sendToFacebook(customerId, result.reply, {
-            token: page.page_access_token || PAGE_ACCESS_TOKEN
-          });
-          if (!fbResult.ok) {
-            console.warn(`[WEBHOOK] AI reply saved local nhung FB send FAIL: ${fbResult.error}`);
-            conv.tags = [...new Set([...conv.tags, 'fb-send-failed'])];
-            emitConvUpdate(conv);
-          }
+          // === AI TU DONG TRA LOI - DA TAT THEO YEU CAU USER ===
+          // Truoc day: push botMsg local + sendToFacebook.
+          // Bay gio: chi log de debug, KHONG push, KHONG send FB.
+          // Neu user muon bat lai, comment check nay va uncomment block ben duoi.
+          console.log(`[WEBHOOK] AI reply SKIPPED (user da tat auto-reply) text="${(result.reply || '').slice(0, 80)}..."`);
+          // === OPTIONAL: Bat lai AI auto-reply ===
+          // const botMsg = {
+          //   from: 'bot',
+          //   text: result.reply,
+          //   model: `BOT - ${db.ai_config.model || 'gpt-4o-mini'}`,
+          //   lang: result.targetLang,
+          //   time: new Date().toLocaleTimeString()
+          // };
+          // conv.messages.push(botMsg);
+          // conv.status = 'dang-tu-van';
+          // conv.last_message = result.reply;
+          // conv.updated_at = new Date().toISOString();
+          // if (result.autoTags && result.autoTags.length) {
+          //   conv.tags = [...new Set([...conv.tags, ...result.autoTags])];
+          // }
+          // emitNewMessage(conv, botMsg);
+          // const fbResult = await sendToFacebook(customerId, result.reply, {
+          //   token: page.page_access_token || PAGE_ACCESS_TOKEN
+          // });
+          // if (!fbResult.ok) {
+          //   console.warn(`[WEBHOOK] AI reply saved local nhung FB send FAIL: ${fbResult.error}`);
+          //   conv.tags = [...new Set([...conv.tags, 'fb-send-failed'])];
+          //   emitConvUpdate(conv);
+          // }
+        } else {
+          // reply null (khong co OpenAI key that) -> skip hoan toan
+          console.log(`[WEBHOOK] AI skip (reply=null, can OpenAI key that de bat)`);
         }
       } catch (e) {
         console.error(`[WEBHOOK] brain.processMessage loi:`, e && e.stack ? e.stack : e);
@@ -468,21 +482,25 @@ app.post('/api/test-message', async (req, res) => {
   emitNewMessage(conv, customerMsg);
 
   try {
+    // USER YEU CAU: TAT AI TU DONG - chi goi processMessage de biet co can transfer khong, KHONG push botMsg
     const result = await brain.processMessage(internalPageId, cid, txt, conv);
     if (result.transfer) {
       conv.status = 'cho-xu-ly';
       conv.tags = [...new Set([...conv.tags, 'cho-xu-ly'])];
       conv.updated_at = new Date().toISOString();
     } else if (result.reply) {
-      const botMsg = {
-        from: 'bot', text: result.reply, model: `BOT - ${db.ai_config.model || 'gpt-4o-mini'}`,
-        lang: result.targetLang, time: new Date().toLocaleTimeString()
-      };
-      conv.messages.push(botMsg);
-      conv.status = 'dang-tu-van';
-      conv.last_message = result.reply;
-      if (result.autoTags) conv.tags = [...new Set([...conv.tags, ...result.autoTags])];
-      emitNewMessage(conv, botMsg);
+      // === AI TU DONG TRA LOI - DA TAT THEO YEU CAU USER (test endpoint cung tat) ===
+      console.log(`[TEST-MSG] AI reply SKIPPED (user da tat auto-reply) text="${(result.reply || '').slice(0, 80)}..."`);
+      // === OPTIONAL: bat lai ===
+      // const botMsg = {
+      //   from: 'bot', text: result.reply, model: `BOT - ${db.ai_config.model || 'gpt-4o-mini'}`,
+      //   lang: result.targetLang, time: new Date().toLocaleTimeString()
+      // };
+      // conv.messages.push(botMsg);
+      // conv.status = 'dang-tu-van';
+      // conv.last_message = result.reply;
+      // if (result.autoTags) conv.tags = [...new Set([...conv.tags, ...result.autoTags])];
+      // emitNewMessage(conv, botMsg);
     }
   } catch (e) {
     console.error('[TEST-MSG] brain loi:', e && e.stack ? e.stack : e);
